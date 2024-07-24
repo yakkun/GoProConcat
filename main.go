@@ -5,11 +5,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/djherbis/times"
 )
+
+type FileInfo struct {
+	Path          string
+	FileNumber    int
+	ChapterNumber int
+}
 
 func checkRequirements() error {
 	if runtime.GOOS != "darwin" {
@@ -29,19 +39,60 @@ func checkRequirements() error {
 	return nil
 }
 
-func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime time.Time) error {
-	listFile, err := os.CreateTemp("", "*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %v", err)
+func parseFileName(filePath string) (FileInfo, error) {
+	re := regexp.MustCompile(`(GH|GX)(\d{2})(\d{4})\.(?i:mp4)`)
+	matches := re.FindStringSubmatch(strings.ToUpper(filepath.Base(filePath)))
+	if len(matches) < 4 {
+		return FileInfo{}, fmt.Errorf("invalid file format: %s", filePath)
 	}
-	defer os.Remove(listFile.Name())
+	chapterNumber, _ := strconv.Atoi(matches[2])
+	fileNumber, _ := strconv.Atoi(matches[3])
+	return FileInfo{
+		Path:          filePath,
+		FileNumber:    fileNumber,
+		ChapterNumber: chapterNumber,
+	}, nil
+}
+
+func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime time.Time) error {
+	var files []FileInfo
+	fileMap := make(map[string]bool)
 
 	for _, inputPath := range inputPaths {
 		absPath, err := filepath.Abs(inputPath)
 		if err != nil {
 			return fmt.Errorf("failed to get absolute path for %s: %v", inputPath, err)
 		}
-		_, err = listFile.WriteString(fmt.Sprintf("file '%s'\n", absPath))
+
+		if fileMap[absPath] {
+			return fmt.Errorf("duplicate file detected: %s. Please remove duplicates and try again.", absPath)
+		}
+		fileMap[absPath] = true
+
+		fileInfo, err := parseFileName(inputPath)
+		if err != nil {
+			return err
+		}
+		fileInfo.Path = absPath
+		files = append(files, fileInfo)
+	}
+
+	// Sort files by FileNumber and ChapterNumber
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].FileNumber == files[j].FileNumber {
+			return files[i].ChapterNumber < files[j].ChapterNumber
+		}
+		return files[i].FileNumber < files[j].FileNumber
+	})
+
+	listFile, err := os.CreateTemp("", "*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(listFile.Name())
+
+	for _, file := range files {
+		_, err = listFile.WriteString(fmt.Sprintf("file '%s'\n", file.Path))
 		if err != nil {
 			return fmt.Errorf("failed to write to temp file: %v", err)
 		}

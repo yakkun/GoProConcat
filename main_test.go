@@ -1,33 +1,35 @@
 package main
 
 import (
-	"fmt"
 	"github.com/djherbis/times"
-	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
 
 func createTestVideoFile(name string) (*os.File, error) {
-	tempFile, err := ioutil.TempFile("", name+"*.mp4")
+	// Create a temporary file with a specific name format
+	tempDir := os.TempDir()
+	tempFilePath := tempDir + "/" + name + ".mp4"
+	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
 		return nil, err
 	}
 	tempFile.Close()
 
 	// Create a small dummy video file using ffmpeg
-	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=1280x720:rate=30", "-c:v", "libx264", tempFile.Name())
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=1280x720:rate=30", "-c:v", "libx264", tempFilePath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		os.Remove(tempFile.Name())
-		return nil, fmt.Errorf("failed to create test video file: %v", err)
+		os.Remove(tempFilePath)
+		return nil, err
 	}
 
-	return tempFile, nil
+	return os.Open(tempFilePath)
 }
 
 func TestCheckRequirements(t *testing.T) {
@@ -39,13 +41,13 @@ func TestCheckRequirements(t *testing.T) {
 
 func TestGetFileTimes(t *testing.T) {
 	// Create temporary files for testing
-	tempFile1, err := createTestVideoFile("testfile1")
+	tempFile1, err := createTestVideoFile("GH011234")
 	if err != nil {
 		t.Fatalf("Failed to create temp video file 1: %v", err)
 	}
 	defer os.Remove(tempFile1.Name())
 
-	tempFile2, err := createTestVideoFile("testfile2")
+	tempFile2, err := createTestVideoFile("GH021234")
 	if err != nil {
 		t.Fatalf("Failed to create temp video file 2: %v", err)
 	}
@@ -77,19 +79,19 @@ func TestGetFileTimes(t *testing.T) {
 
 func TestMergeFiles(t *testing.T) {
 	// Create temporary output file and input files for testing
-	tempFile1, err := createTestVideoFile("testfile1")
+	tempFile1, err := createTestVideoFile("GH011234")
 	if err != nil {
 		t.Fatalf("Failed to create temp video file 1: %v", err)
 	}
 	defer os.Remove(tempFile1.Name())
 
-	tempFile2, err := createTestVideoFile("testfile2")
+	tempFile2, err := createTestVideoFile("GH021234")
 	if err != nil {
 		t.Fatalf("Failed to create temp video file 2: %v", err)
 	}
 	defer os.Remove(tempFile2.Name())
 
-	outputFile, err := ioutil.TempFile("", "outputfile*.mp4")
+	outputFile, err := os.CreateTemp("", "outputfile*.mp4")
 	if err != nil {
 		t.Fatalf("Failed to create output file: %v", err)
 	}
@@ -118,5 +120,34 @@ func TestMergeFiles(t *testing.T) {
 
 	if !info.ModTime().Equal(modTime.In(time.Local)) {
 		t.Errorf("Expected modification time %v, got %v", modTime.In(time.Local), info.ModTime())
+	}
+}
+
+func TestDuplicateFiles(t *testing.T) {
+	// Create temporary output file and input files for testing
+	tempFile1, err := createTestVideoFile("GH011234")
+	if err != nil {
+		t.Fatalf("Failed to create temp video file 1: %v", err)
+	}
+	defer os.Remove(tempFile1.Name())
+
+	outputFile, err := os.CreateTemp("", "outputfile*.mp4")
+	if err != nil {
+		t.Fatalf("Failed to create output file: %v", err)
+	}
+	defer os.Remove(outputFile.Name())
+
+	inputPaths := []string{tempFile1.Name(), tempFile1.Name()} // Duplicate file
+	creationTime := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
+	modTime := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+
+	// Test mergeFiles function with duplicate files
+	err = mergeFiles(outputFile.Name(), inputPaths, creationTime, modTime)
+	if err == nil {
+		t.Errorf("Expected error due to duplicate files, but got none")
+	} else if !strings.Contains(err.Error(), "duplicate file detected") {
+		t.Errorf("Expected error message to contain 'duplicate file detected', but got: %v", err)
+	} else {
+		t.Logf("Received expected error due to duplicate files: %v", err)
 	}
 }
