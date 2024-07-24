@@ -65,7 +65,7 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 		}
 
 		if fileMap[absPath] {
-			return fmt.Errorf("duplicate file detected: %s. Please remove duplicates and try again.", absPath)
+			return fmt.Errorf("duplicate file detected: %s. Please remove duplicates and try again", absPath)
 		}
 		fileMap[absPath] = true
 
