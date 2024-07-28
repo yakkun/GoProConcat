@@ -101,6 +101,7 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 
 	cmd := exec.Command(
 		"ffmpeg",
+		"-hide_banner", "-nostats", "-loglevel", "error", // Suppress FFmpeg output
 		"-f", "concat",
 		"-safe", "0",
 		"-i", listFile.Name(),
