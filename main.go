@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,6 +58,10 @@ func parseFileName(filePath string) (FileInfo, error) {
 func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime time.Time) error {
 	var files []FileInfo
 	fileMap := make(map[string]bool)
+
+	if len(inputPaths) == 1 {
+		return copyFile(inputPaths[0], outputPath)
+	}
 
 	for _, inputPath := range inputPaths {
 		absPath, err := filepath.Abs(inputPath)
@@ -136,6 +141,26 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 	}
 
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destinationFile.Close()
+
+	if _, err := io.Copy(destinationFile, sourceFile); err != nil {
+		return err
+	}
+
+	return destinationFile.Close()
 }
 
 func getFileTimes(inputPaths []string) (time.Time, time.Time, error) {
