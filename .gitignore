@@ -77,3 +77,6 @@ Temporary Items
 
 ### GoProConcat
 GoProConcat
+
+# Local test footage (large GoPro source files)
+tests/
