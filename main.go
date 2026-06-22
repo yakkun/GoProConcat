@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/djherbis/times"
+	"golang.org/x/sys/unix"
 )
 
 type FileInfo struct {
@@ -144,6 +145,16 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 }
 
 func copyFile(src, dst string) error {
+	// Try an APFS clonefile first: a copy-on-write clone is near-instant and
+	// moves no data. It requires dst not to exist, so remove it first to mirror
+	// the overwrite behavior of the ffmpeg path (-y).
+	_ = os.Remove(dst)
+	if err := unix.Clonefile(src, dst, 0); err == nil {
+		return nil
+	}
+
+	// Fall back to a byte copy when clonefile is unsupported (non-APFS volume,
+	// cross-device copy, etc.).
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
