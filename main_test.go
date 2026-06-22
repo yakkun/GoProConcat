@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/djherbis/times"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -92,7 +91,7 @@ func TestMergeFiles(t *testing.T) {
 	}
 	defer os.Remove(tempFile2.Name())
 
-	outputFile, err := ioutil.TempFile("", "outputfile*.mp4")
+	outputFile, err := os.CreateTemp("", "outputfile*.mp4")
 	if err != nil {
 		t.Fatalf("Failed to create output file: %v", err)
 	}
@@ -132,7 +131,7 @@ func TestDuplicateFiles(t *testing.T) {
 	}
 	defer os.Remove(tempFile1.Name())
 
-	outputFile, err := ioutil.TempFile("", "outputfile*.mp4")
+	outputFile, err := os.CreateTemp("", "outputfile*.mp4")
 	if err != nil {
 		t.Fatalf("Failed to create output file: %v", err)
 	}
@@ -161,7 +160,7 @@ func TestSingleFileMerge(t *testing.T) {
 	}
 	defer os.Remove(tempFile.Name())
 
-	outputFile, err := ioutil.TempFile("", "outputfile*.mp4")
+	outputFile, err := os.CreateTemp("", "outputfile*.mp4")
 	if err != nil {
 		t.Fatalf("Failed to create output file: %v", err)
 	}

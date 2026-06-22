@@ -66,7 +66,7 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 	for _, inputPath := range inputPaths {
 		absPath, err := filepath.Abs(inputPath)
 		if err != nil {
-			return fmt.Errorf("failed to get absolute path for %s: %v", inputPath, err)
+			return fmt.Errorf("failed to get absolute path for %s: %w", inputPath, err)
 		}
 
 		if fileMap[absPath] {
@@ -92,14 +92,14 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 
 	listFile, err := os.CreateTemp("", "*")
 	if err != nil {
-		return fmt.Errorf("failed to create temp file: %v", err)
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer os.Remove(listFile.Name())
 
 	for _, file := range files {
 		_, err = listFile.WriteString(fmt.Sprintf("file '%s'\n", file.Path))
 		if err != nil {
-			return fmt.Errorf("failed to write to temp file: %v", err)
+			return fmt.Errorf("failed to write to temp file: %w", err)
 		}
 	}
 	listFile.Close()
@@ -123,7 +123,7 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("ffmpeg command failed: %v", err)
+		return fmt.Errorf("ffmpeg command failed: %w", err)
 	}
 
 	fmt.Printf("Setting creation time using SetFile: %s\n", creationTime.In(time.Local).Format("01/02/2006 15:04:05"))
@@ -132,12 +132,12 @@ func mergeFiles(outputPath string, inputPaths []string, creationTime, modTime ti
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to set creation time for %s: %v", outputPath, err)
+		return fmt.Errorf("failed to set creation time for %s: %w", outputPath, err)
 	}
 
 	err = os.Chtimes(outputPath, creationTime, modTime)
 	if err != nil {
-		return fmt.Errorf("failed to set file times for %s: %v", outputPath, err)
+		return fmt.Errorf("failed to set file times for %s: %w", outputPath, err)
 	}
 
 	return nil
@@ -169,7 +169,7 @@ func getFileTimes(inputPaths []string) (time.Time, time.Time, error) {
 	for _, inputPath := range inputPaths {
 		info, err := os.Stat(inputPath)
 		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("failed to stat input file %s: %v", inputPath, err)
+			return time.Time{}, time.Time{}, fmt.Errorf("failed to stat input file %s: %w", inputPath, err)
 		}
 
 		ts := times.Get(info)
@@ -188,16 +188,13 @@ func getFileTimes(inputPaths []string) (time.Time, time.Time, error) {
 	return oldestTime, modTime, nil
 }
 
-func main() {
+func run() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: GoProConcat outputfile inputfile1 [inputfile2 ...]")
-		return
+		return fmt.Errorf("usage: GoProConcat outputfile inputfile1 [inputfile2 ...]")
 	}
 
-	err := checkRequirements()
-	if err != nil {
-		fmt.Println(err)
-		return
+	if err := checkRequirements(); err != nil {
+		return err
 	}
 
 	outputPath := os.Args[1]
@@ -205,15 +202,20 @@ func main() {
 
 	creationTime, modTime, err := getFileTimes(inputPaths)
 	if err != nil {
-		fmt.Printf("Error getting file times: %v\n", err)
-		return
+		return fmt.Errorf("getting file times: %w", err)
 	}
 
-	err = mergeFiles(outputPath, inputPaths, creationTime, modTime)
-	if err != nil {
-		fmt.Printf("Error merging files: %v\n", err)
-		return
+	if err := mergeFiles(outputPath, inputPaths, creationTime, modTime); err != nil {
+		return fmt.Errorf("merging files: %w", err)
 	}
 
 	fmt.Println("Files merged successfully")
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
